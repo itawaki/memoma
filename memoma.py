@@ -1,16 +1,16 @@
 # https://github.com/itawaki/memoma
+import os
+import json
+import matplotlib.pyplot as plt
+import hashlib
+import datetime
+import texttable
+
 class memoma():
-    import os
-    import json
-    import matplotlib.pyplot as plt
-    import hashlib
-    import datetime
-    import texttable
     # Constructor
     def __init__(self, path):
         self.file_path = path
         self.memos = []
-
         # if file exists, read data
         if os.path.isfile(path):
             f = open(path, mode='r')
@@ -19,25 +19,28 @@ class memoma():
                 a = json.loads(line)
                 self.memos.append(a)
             f.close()
-        # print(self.memos)
 
     def show_memo(self):
         rows = [['#', 'name', 'layers', 'update time']]
         for i, memo in enumerate(self.memos):
+            if ('layers') in memo['config']:
+                configs=memo['config']['layers']
+            else:
+                configs=memo['config']
             layers = ''
-            for j, c in enumerate(memo['config']):
-                layers += memo['config'][c]['class_name']
+            for j, c in enumerate(configs):
+                layers += c['class_name']
                 sub_text = '('
-                if ('units') in memo['config'][c]['config']:
-                    sub_text += 'units:' + str(memo['config'][c]['config']['units']) + ' '
-                if ('filters') in memo['config'][c]['config']:
-                    sub_text += 'filters:' + str(memo['config'][c]['config']['filters']) + ' '
-                if ('activation') in memo['config'][c]['config']:
-                    sub_text += 'act:' + memo['config'][c]['config']['activation'] + ' '
+                if ('units') in c['config']:
+                    sub_text += 'units:' + str(c['config']['units']) + ' '
+                if ('filters') in c['config']:
+                    sub_text += 'filters:' + str(c['config']['filters']) + ' '
+                if ('activation') in c['config']:
+                    sub_text += 'act:' + c['config']['activation'] + ' '
                 sub_text += ')'
                 layers += sub_text
-                if j < len(memo['config']) - 1:
-                    layers += '->'
+                layers += '->'
+            layers += 'output'
             rows.append([i, memo['name'], layers, memo['time']])
         table = texttable.Texttable()
         table.set_cols_align(["l", "l", "l", "l"])
@@ -47,13 +50,13 @@ class memoma():
         table.add_rows(rows)
         print(table.draw() + "\n")  # 表示
 
-    def save(self, m, h, name=None, hd5=None):
+    def save(self, m, h, name=None, h5=None):
         now = datetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S')
 
         if name is None:
             name = now
-        if hd5 is None:
-            hd5 = ''
+        if h5 is None:
+            h5 = ''
 
         md5 = hashlib.md5()
         md5.update(str(now).encode('utf-8'))
@@ -62,15 +65,20 @@ class memoma():
         self.model = m
         self.history = h
 
-        config = {}
-        for i, c in enumerate(self.model.get_config()):
+        config = self.model.get_config()
+        """
+        if ('layers') in layers:
+            layers=layers['layers']
+        for i, c in enumerate(layers):
             l = 'layer' + str(i)
             config[l] = c
-
+        """
         temp = {"id": id,
                 "name": name,
-                "hd5": hd5,
+                "h5": h5,
                 "time": now,
+                "model_type": str(type(self.model)),
+                "history_type": str(type(self.history)),
                 "config": config,
                 "history": self.history.history}
         f = open(self.file_path, 'a')
@@ -89,7 +97,7 @@ class memoma():
             ms = self.memos
         if len(num) == 1:
             if num[0] >= 0:
-                ms = self.memos[:num[0]]
+                ms = self.memos[num[0]:num[0]+1]
             elif num[0] < 0:
                 ms = self.memos[num[0]:]
                 start = len(self.memos) + num[0]
@@ -115,6 +123,7 @@ class memoma():
             plt.title('#{0:d} {1:s} Training and validation accuracy'.format(i + start, name))
             plt.grid(True)
             plt.legend()
+
             # plot loss
             plt.subplot(1, 2, 2)
             plt.plot(epochs, loss, 'o', color=c[i & c_mask], label='Training loss')
